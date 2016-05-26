@@ -5,22 +5,30 @@ gcc -o s s.c -Wall -lssl -lcrypto -lpthread -lm
 
 
         -Server shutdown commands / hotkeys ..callback function ? 
-        -Track Clients to print out on server messages
+        -Track Clients to print out on server messages ??
         
+        - Bugs- CMDs from client need a space after arguments ie.. "-f sample.text " instead of -f sample.txt
 
-        - add Methods
 
-        - -l list()
+        - -listALL(ssl)
+            -needs to send to client
+            
+
         - addFile();
+            -TODO
+        
+         - fetchFile() 
+            -needs testing/fixing optimizing
+
+
+            TODO-
         - circ() client ?
         - nameforTrust()
-        - fetchFile() 
         - vouchFor()
         - upload cert()
         - remote adrr of server 
-        
- 
-       - Testing and code cleanup.
+
+        -code cleanup.
 
  
  */
@@ -41,6 +49,9 @@ gcc -o s s.c -Wall -lssl -lcrypto -lpthread -lm
 #include <sys/wait.h>
 #include <signal.h>
 #include <stdbool.h>
+#include <sys/stat.h>
+#include <dirent.h>
+
 
 #define MAX_CONNECTIONS 10
 #define MAX_ARGS 5 //from client
@@ -87,7 +98,7 @@ int sock_setup(char* PORT){
         if (bind(sockfd, p->ai_addr, p->ai_addrlen) == -1) {
             close(sockfd);
             perror("server: bind");
-            continue;
+            exit(1);
         }
 
         break;
@@ -117,11 +128,10 @@ int sock_setup(char* PORT){
 SSL_CTX* InitSSL()
 {
     SSL_CTX *ctx;
-    ERR_load_BIO_strings();
     SSL_load_error_strings();
     SSL_library_init();
 
-    /* Set up the SSL context */
+     /* Set up the SSL context */
 
     //TODO SSLv23_server_method() for compatability or not needed as we are writing
     // a client pair for this server ???? ie both could just use SSLv3_server_ method() &&	SSLv3_client_ method() respectivly
@@ -202,6 +212,158 @@ void ShowCerts(SSL* ssl)
     else
         printf("No Certificate Recieved from Client .. \n Awaiting requests.....");
 }
+////////////////////////////////////////////////////////////////////////////////////////////////
+//                        List All 
+//              -TODO SEND DOWN SSL TO CLIENT at the moment just list them in the server client
+////////////////////////////////////////////////////////////////////////////////////////////////
+int listAll(SSL* ssl)
+{
+
+
+DIR *dir;
+struct dirent *ent;
+if ((dir = opendir ("OldTrusty")) != NULL) {
+  /* print all the files and directories within directory */
+  while ((ent = readdir (dir)) != NULL) {
+    printf ("%s\n", ent->d_name);
+  }
+  closedir (dir);
+} else {
+  /* could not open directory */
+  perror ("");
+  return EXIT_FAILURE;
+}
+
+
+return 0;
+}
+////////////////////////////////////////////////////////////////////////////////////////////////
+//                  -f Send file to client on request first sending file length       
+//                  //TODO
+////////////////////////////////////////////////////////////////////////////////////////////////
+int addFile(char* fileName, SSL* ssl  )
+{
+
+// read in header first (long filesize, char* filename)
+
+
+
+
+// while SSL_read < totalFileSize  keep reading --TIMEOUT ?? 
+
+
+
+return 0;
+
+
+
+
+
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////
+//                  -f Send file to client on request first sending file length               //
+////////////////////////////////////////////////////////////////////////////////////////////////
+int sendFile(char* filename , SSL* ssl)
+{
+
+  
+    struct header {
+
+    long data_length;
+    //add other stuff here if needed?
+    };
+
+
+    char* buf;
+    long fileSize;
+    FILE *fp;
+    
+    //NOTE FOR TEAM stat() might be usefull to get info about fie (Owner last modified etc. permissions.)
+
+    //Check if the server contains the requested file.
+    if( access( filename , F_OK ) != -1 ) {
+    printf("Server: Requested file exists in server attempting to send....\n ");
+
+    } else {
+        printf("Server: Requested file can not be found in server\n");
+        return -1;
+    }
+    
+
+   //attempt to open file
+   fp = fopen(filename, "ab"); 
+
+   if (fp == NULL) {
+       printf("Server: Error Opening Client Requested File");
+       return -1;
+   }
+    
+
+// send file size to client.     
+fseek(fp,0 ,SEEK_END);
+fileSize =ftell(fp);
+fseek(fp,0,SEEK_SET);
+
+printf("the size of the req file is : %ld bytes \n " ,fileSize );
+struct header hdr;
+hdr.data_length = fileSize;
+
+int ret = SSL_write(ssl, (char*)(&hdr) ,sizeof(hdr));
+
+            
+if (ret <=0)
+{
+SSL_get_error(ssl, ret);
+
+}
+
+
+
+
+//ALLOCATE MEMORY IN BUFFER
+buf=(char *) malloc(fileSize + 1);
+        if ( !buf){
+        fprintf( stderr, "Memory Allocation Error");
+        fclose(fp);
+        }
+
+fread(buf, fileSize , 1, fp);
+
+
+
+//while SSL_write < filesize keep sending
+//
+long totalsent =0;
+
+while ( totalsent < fileSize){
+
+int sofar = SSL_write(ssl, buf ,sizeof(buf));
+{
+    if (sofar <=  0){
+    SSL_get_error(ssl, ret);
+    break; 
+    }
+
+    totalsent += sofar;
+}
+
+}
+
+ printf("Server: File Sent %ld\n", totalsent ) ;
+
+
+fclose(fp); //clsoe what we open.
+
+//can shutdown here or stay open for ore commands
+return 0; 
+
+
+
+
+
+}
+    
 
 
 /*///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -235,16 +397,17 @@ int processCommand(char* str, SSL* ssl )
                              return 9;
                               
                    if       (strcmp(cmd[0], "-a")== 0){
-                            printf("Client would like to add %s file to the server.. : \n", cmd[1]);
-                            //addFile(char* filename);
+                            printf("Server: Client would like to add %s file to the server.. : \n", cmd[1]);
+                            addFile(cmd[1] , ssl);
                                          }
                    else if (strcmp(cmd[0], "-c")== 0){
-                            printf("Client requires circle of trust change....%s: \n", cmd[1]);
+                            printf("Server: Client requires circle of trust change....%s: \n", cmd[1]);
                             //setTrust();  -handle in client
                                           }
                    else if (strcmp(cmd[0], "-f")== 0){
-                            printf("Client would like to fetch %s file from the server.. : \n", cmd[1]);
-                            //getFile();
+                        printf("Server: Client would like to fetch %s file from the server.. : \n", cmd[1]);
+                    if   ( sendFile(cmd[1] ,ssl) == -1 )
+                        printf("Server: Send Failed");
                                          }
                    else if (strcmp(cmd[0], "-n")== 0){
                             printf("Circle of trust requires %s To be in the circle\n", cmd[1]);
@@ -264,8 +427,8 @@ int processCommand(char* str, SSL* ssl )
                                          }
                    else if (strcmp(cmd[0], "-l")== 0){
                             printf("List Files.. \n");
-                           //vouchforfile(FileName, certificate);
-                                         }
+                            listAll(ssl);
+                                                                    }
 
 
                    //Default Error Message (Non Supported Commands).
@@ -322,6 +485,31 @@ bool exitcmd = false;
 printf("client exited, perform shutdown.....for client \n");  //TODO track Clients (sequence numbers ?? 
  }
 
+/*///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+                                                      Examine OldTrusty File Structure     
+                                                 -Makes sure all folders are in the right place
+                                                 -TODO security permissions for private folder??
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////*/
+int checkFileStruct()
+{
+struct stat Ot = {0};
+struct stat Sc = {0};
+struct stat pr = {0};
+
+
+if (stat("OldTrusty", &Ot) == -1) 
+    return -1;
+   
+
+if (stat("OldTrusty/ServerCerts", &Sc) == -1) 
+    return -1;
+
+if (stat("OldTrusty/priv", &pr) == -1) 
+    return -1;
+
+  
+ return 0;
+}
 
 /*///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
                                ---------------------------- MAIN METHOD---------------------------------------                                                   
@@ -338,7 +526,14 @@ int main(int argc , char *argv[])
      int cli;
      pid_t pid;
 
-     
+    //Innitiliaze Server
+   if (checkFileStruct() == -1){
+       printf("Problem With OldTrusty File Structure\n");
+       exit(1);
+   }
+   
+
+
 
     //Initialize SSL 
        
@@ -346,21 +541,21 @@ int main(int argc , char *argv[])
         printf("Usage %s <portNUMBER> \n" , argv[0]);
         exit(1);
     }
-    P_num = argv[1]; //Set Port --TODO get rid fo pesky port still in use probs
+    P_num = argv[1]; //Set Port
 
     ctx = InitSSL();
-    load_Certs(ctx, "mycert.pem", "mycert.pem");
+    load_Certs(ctx, "OldTrusty/ServerCerts/mycert.pem", "OldTrusty/ServerCerts/mycert.pem");  //ALL IN ONE ? 
     //Get A regular tcp socket. already bound and listening.
     sfd = sock_setup(P_num);
 
 
     printf("OldTrusty Awaiting Connections on Port: %s\n" , P_num);
 
-
-    //***********************************MAIN ACCEPT LOOP STARTS HERE *****************************/
-    for(;;) {         //Ever ?? 
+      //***********************************MAIN ACCEPT LOOP STARTS HERE *****************************/
+    for(;;) {     
+        //Ever ?? 
         
-    len  = sizeof(cli_addr);
+      len  = sizeof(cli_addr);
     
     cli = accept(sfd,  (struct sockaddr *)&cli_addr, &len); 
         if (cli == -1) {
@@ -387,13 +582,18 @@ int main(int argc , char *argv[])
     if ( SSL_accept(ssl) == -1)    
        ERR_print_errors_fp(stderr);
 
+    //CREATE BIO OBJECT FOR THE SSL ?? TODO TO US OpenSSL over other channels (not just socketS)
+    //TODO
 
-    //Show Client Certs (If any)
+    //Show Client Certs (If any) // CAN ADDif require client auth then -- check_cert(ssl,client )
+    //for now jsut show client certs if has any
     ShowCerts(ssl);
 
     // Here is a connection to the client 
     do_clients_bidding(ssl);
 
+
+    
     SSL_free(ssl);
     close(cli);
 
@@ -406,7 +606,7 @@ int main(int argc , char *argv[])
     }  ///***END MAIN ACCEPT LOOP *****//
      
 
-    SSL_CTX_free(ctx); //release context
+    SSL_CTX_free(ctx); //release context TODO never get hear?? graceful shutdown of server?
    
    
 return 0;
