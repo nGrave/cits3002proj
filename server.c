@@ -39,7 +39,7 @@ TODO -
 
 #define OLDTRUSTY "OldTrusty/"
 #define Certs "OldTrusty/ServerCerts"
-#define Priv "OldTrusty/Priv"
+#define PRIV "OldTrusty/Priv"
 
 #define MAX_CONNECTIONS 10
 #define MAX_ARGS 5 //from client
@@ -296,11 +296,21 @@ To do this change listoffiles.split(':') to a different character.
 return 0;
 }
 ///CHECK IF A FILE EXISTS IN OLDTRUSTY/////////////////////////////
-int checkFile (char *filename)
+int checkFile (char *filename, int flag)
 {
-    //Concat directory and filename
-  char *pth = malloc(strlen(OLDTRUSTY) + strlen(filename) +2 ); 
+    
+    char *pth ;
+    //Concat OT directory and filename
+  if(flag == 0){
+  pth = malloc(strlen(OLDTRUSTY) + strlen(filename) +2 ); 
   sprintf(pth, "%s%s", OLDTRUSTY, filename);
+  }
+
+  if(flag == 1){
+  pth = malloc(strlen(PRIV) + strlen(filename) +2 ); 
+  sprintf(pth, "%s%s", PRIV, filename);
+  }
+
 
   //check if file exists in directory
   struct stat   file;   
@@ -324,7 +334,7 @@ int addFile(char* fileName, SSL* ssl  )
      
    
     //Dont allow clients to overwrite files ?? 
-    if(checkFile(fileName)){
+    if(checkFile(fileName,0)){
         printf("Server: client trying to upload a file that Already exists in server\n");
         return -1;//TODO handle in client
     }
@@ -401,7 +411,7 @@ int sendFile(char* filename , SSL* ssl)
     char response[] = "ok";//response for indicating to the client that the add file command was received successfully
 
     //Check if the server contains the requested file.
-    if(checkFile(filename) ) {
+    if(checkFile(filename,0) ) {
     printf("Server: Requested file exists in server attempting to send....\n");
     SSL_write(ssl, response, strlen(response));//Send response to client indicating that next step can begin
     }
@@ -509,8 +519,19 @@ int addCert(char* fileName, SSL* ssl  )
     SSL_write(ssl, response, strlen(response));//Send response to client indicating that the server is ready for next step
     // read in header first (long filesize, char* filename)
     FILE *filereceived;//Pointer to a file which the file to be received will be written to
-    filereceived=fopen(fileName, "w+");//Create and open the file ready for writing.(Overwrites old file of that name)
+   
+       
+    //Dont allow clients to overwrite files ?? 
+    if(checkFile(fileName,1)){
+        printf("Server: client trying to upload a certificate that Already exists in server\n");
+        return -1;//TODO handle in client
+    }
 
+     //Concat directory and filename
+    char *rpth = malloc(strlen(PRIV) + strlen(fileName) +2 ); 
+    sprintf(rpth, "%s%s", PRIV, fileName);
+
+    filereceived=fopen(rpth, "w+");//Create and open the file ready for writing.
 
 
     int bytesreceieved =SSL_read(ssl,buffer,sizeof(buffer));//Track how many bytes received initially and will track through transfer
