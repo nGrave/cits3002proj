@@ -38,8 +38,8 @@ TODO -
 
 
 #define OLDTRUSTY "OldTrusty/"
-#define Certs "OldTrusty/ServerCerts"
-#define PRIV "OldTrusty/Priv"
+#define Certs "OldTrusty/ServerCerts/"
+#define PRIV "OldTrusty/Priv/"
 
 #define MAX_CONNECTIONS 10
 #define MAX_ARGS 5 //from client
@@ -316,9 +316,9 @@ int checkFile (char *filename, int flag)
   struct stat   file;   
   int res = stat(pth, &file);
   //free memory allocation
-  free(pth); 
+  
   printf("Server: Path: %s\n" , pth);
-
+  free(pth); 
   return res == 0;
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -583,7 +583,7 @@ int processCommand(char* str, SSL* ssl )
     }
     else if (strcmp(cmd[0], "-u")== 0){
     printf("Client would like to upload a certificate. : \n");
-                                      }
+           addCert(cmd[1],ssl);                           }
 
     else if (strcmp(cmd[0], "-v")== 0){
     printf("Client would like to Vouch for  file: %s on the server.. : \n", cmd[1]);
